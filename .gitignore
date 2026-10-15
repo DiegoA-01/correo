@@ -1,0 +1,11 @@
+node_modules/
+dist/
+target/
+.wrangler/
+.dev.vars
+.env
+.env.local
+.netlify/
+.idea/
+*.iml
+.$*.bkp

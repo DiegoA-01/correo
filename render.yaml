@@ -1,0 +1,17 @@
+# Blueprint de Render (opcional): Render → New → Blueprint, y elige este repo.
+# También puedes crear el servicio a mano; los valores son los mismos (ver README).
+services:
+  - type: web
+    name: correo-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: WORKER_URL
+        sync: false
+      - key: WORKER_INTERNAL_KEY
+        sync: false
+      - key: ALLOWED_ORIGIN
+        sync: false

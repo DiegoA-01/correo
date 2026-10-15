@@ -1,0 +1,14 @@
+# Nombre del Worker que ya existe en tu cuenta de Cloudflare.
+name = "weathered-fog-b4e0"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# Remitente. "onboarding@resend.dev" sirve para probar, pero solo envía a tu propio correo de Resend.
+# Para enviar a cualquiera, verifica tu dominio en Resend (Domains) y usa p. ej. "no-reply@tudominio.com".
+FROM_EMAIL = "onboarding@resend.dev"
+FROM_NAME = "Sistema de Correos"
+
+# Los secretos NO van aquí. Súbelos así:
+#   npx wrangler secret put RESEND_API_KEY
+#   npx wrangler secret put INTERNAL_API_KEY   (la misma clave que WORKER_INTERNAL_KEY en Render)

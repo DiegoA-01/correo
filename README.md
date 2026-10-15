@@ -1,29 +1,28 @@
 # Sistema de Envío de Correos
 
-React (Netlify) → Spring Boot (Render) → Cloudflare Worker (serverless) → Resend → Destinatario.
+React (Netlify) → Spring Boot (Render) → Cloudflare Worker (serverless) → SendGrid → Destinatario.
 Sin base de datos.
 
 ```
 correo/
 ├── frontend/   React + Vite, se despliega en Netlify
 ├── backend/    Spring Boot 4 (Java 21), se despliega en Render con Docker
-├── worker/     Cloudflare Worker, envía el correo con Resend
-├── render.yaml blueprint opcional para Render
-└── sistema-envio-email.drawio   diagrama de arquitectura
+├── worker/     Cloudflare Worker, envía el correo con SendGrid
+└── docs/       diagrama de arquitectura (sistema-envio-email.drawio) y logos
 ```
 
 ## Cómo funciona
 
 1. React envía `POST /api/email` a Spring Boot con `{ to, subject, message }`.
 2. Spring Boot valida los datos y llama al Worker con el header `X-Internal-Key`.
-3. El Worker revisa esa clave (si no coincide responde `401`) y llama a Resend.
-4. Resend entrega el correo.
+3. El Worker revisa esa clave (si no coincide responde `401`) y llama a SendGrid.
+4. SendGrid entrega el correo.
 
 Secretos y dónde viven:
 
 | Secreto | Dónde | Para qué |
 |---------|-------|----------|
-| `RESEND_API_KEY` | Cloudflare (Worker) | Enviar correos con Resend |
+| `SENDGRID_API_KEY` | Cloudflare (Worker) | Enviar correos con SendGrid |
 | `INTERNAL_API_KEY` | Cloudflare (Worker) | Clave que el Worker exige |
 | `WORKER_INTERNAL_KEY` | Render (Spring Boot) | La **misma** clave, que Spring envía al Worker |
 
@@ -31,7 +30,14 @@ Ningún secreto va en el frontend.
 
 ## Orden de despliegue
 
-Primero el Worker, luego Spring Boot, luego el frontend, y al final cierras el CORS.
+Primero SendGrid y el Worker en Cloudflare, luego Spring Boot, luego el frontend, y al final cierras el CORS.
+
+### 0. SendGrid
+
+1. En SendGrid: *Settings → Sender Authentication → Verify a Single Sender*. Registra el correo
+   remitente (por ejemplo tu Gmail) y confirma el enlace que te llega. Ese será `FROM_EMAIL`.
+2. *Settings → API Keys → Create API Key*, permiso **Restricted Access** con **Mail Send** en
+   *Full Access* (o *Full Access* general). Copia la key (`SG....`); solo se muestra una vez.
 
 ### 1. Clave interna
 
@@ -47,13 +53,13 @@ Desde el panel (*Workers & Pages → weathered-fog-b4e0*):
 
 1. **Edit code**: borra todo, pega el contenido de `worker/src/index.js` y pulsa **Deploy**.
 2. **Settings → Variables and Secrets**, agrega:
-   - Secret `RESEND_API_KEY`: tu key de Resend (`re_...`)
+   - Secret `SENDGRID_API_KEY`: tu API key de SendGrid (`SG....`)
    - Secret `INTERNAL_API_KEY`: la clave del paso 1
-   - Text `FROM_EMAIL`: `onboarding@resend.dev` (o un remitente de tu dominio verificado)
+   - Text `FROM_EMAIL`: tu remitente verificado en SendGrid (ver paso 0)
    - Text `FROM_NAME`: `Sistema de Correos`
 3. Copia la URL del Worker (pestaña **Domains**, `workers.dev`).
 
-O con la terminal: `cd worker`, `npx wrangler secret put RESEND_API_KEY`,
+O con la terminal: `cd worker`, `npx wrangler secret put SENDGRID_API_KEY`,
 `npx wrangler secret put INTERNAL_API_KEY`, `npm run deploy`.
 No mezcles los dos métodos: `wrangler deploy` reemplaza las variables de texto del panel.
 
@@ -73,7 +79,6 @@ No mezcles los dos métodos: `wrangler deploy` reemplaza las variables de texto 
 5. **Create Web Service**. El primer build tarda varios minutos.
 6. Prueba: abre `https://TU-SERVICIO.onrender.com/api/health`, debe responder `{"status":"ok"}`.
 
-(Alternativa: **New → Blueprint** usa `render.yaml` y te pide solo las tres variables.)
 
 En el plan gratis, Render duerme el servicio tras ~15 min sin uso. La primera petición
 después tarda ~50 s o más. El frontend lo "despierta" apenas carga la página.
@@ -92,9 +97,8 @@ Render redespliega solo. Para permitir varias URLs, sepáralas con coma.
 
 ### 6. Probar
 
-Abre tu sitio de Netlify y envía un correo. Con `onboarding@resend.dev`, Resend solo entrega
-al correo de tu cuenta de Resend. Para enviar a cualquiera, verifica un dominio en
-*Resend → Domains* y cambia `FROM_EMAIL`.
+Abre tu sitio de Netlify y envía un correo. Si no llega, revisa la carpeta de spam y
+*SendGrid → Activity Feed*.
 
 ## Desarrollo local
 
@@ -104,7 +108,7 @@ Tres terminales:
 # 1. Worker (http://localhost:8787)
 cd worker
 npm install
-cp .dev.vars.example .dev.vars   # pon RESEND_API_KEY e INTERNAL_API_KEY
+cp .dev.vars.example .dev.vars   # pon SENDGRID_API_KEY e INTERNAL_API_KEY
 npm run dev
 ```
 
@@ -132,16 +136,16 @@ npm run dev
 
 | Respuesta | Significado |
 |-----------|-------------|
-| `200 {"ok":true,"id":"..."}` | Correo aceptado por Resend |
+| `200 {"ok":true,"id":"..."}` | Correo aceptado por SendGrid |
 | `400 {"error":"..."}` | Datos inválidos o JSON mal formado |
-| `502 {"error":"..."}` | Falló el Worker o Resend (revisa logs de Render y Cloudflare) |
+| `502 {"error":"..."}` | Falló el Worker o SendGrid (revisa logs de Render y Cloudflare) |
 
 `GET /api/health` responde `{"status":"ok"}`.
 
 ### Worker: `POST /`
 
 Mismo JSON, más el header `X-Internal-Key`. Responde `401` sin clave correcta,
-`400` con datos inválidos, `500` si falta configuración y `502` si Resend falla.
+`400` con datos inválidos, `500` si falta configuración y `502` si SendGrid falla.
 
 ## Seguridad
 

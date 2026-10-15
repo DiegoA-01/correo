@@ -11,7 +11,7 @@ import org.springframework.web.client.RestClientException;
 
 import java.util.Map;
 
-/** Llama al Cloudflare Worker, que es quien envía el correo con Resend. */
+/** Llama al Cloudflare Worker, que es quien envía el correo con SendGrid. */
 @Component
 public class WorkerClient {
 
@@ -33,7 +33,7 @@ public class WorkerClient {
                 .build();
     }
 
-    /** Devuelve el id del correo en Resend. Lanza EmailSendException si el Worker falla. */
+    /** Devuelve el id del correo en SendGrid. Lanza EmailSendException si el Worker falla. */
     public String send(EmailRequest request) {
         if (isBlank(props.workerUrl()) || isBlank(props.workerInternalKey())) {
             throw new EmailSendException("El backend no está configurado (falta WORKER_URL o WORKER_INTERNAL_KEY)");

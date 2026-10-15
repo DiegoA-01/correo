@@ -1,5 +1,5 @@
 # Copia este archivo como .dev.vars para desarrollo local (wrangler dev).
 # .dev.vars NO se sube a git.
-RESEND_API_KEY=re_tu_api_key_aqui
+SENDGRID_API_KEY=SG.tu_api_key_aqui
 # Clave compartida con el backend Spring Boot (debe ser igual a WORKER_INTERNAL_KEY)
 INTERNAL_API_KEY=cambia-esta-clave-larga-y-aleatoria

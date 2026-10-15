@@ -1,6 +1,6 @@
-// Cloudflare Worker (serverless): recibe la petición del backend Spring Boot y envía el correo con Resend.
+// Cloudflare Worker (serverless): recibe la petición del backend Spring Boot y envía el correo con SendGrid.
 // Solo acepta llamadas que traigan el header X-Internal-Key con el valor de INTERNAL_API_KEY.
-// La API key de Resend vive como secreto del Worker (RESEND_API_KEY), nunca en el backend ni en el frontend.
+// La API key de SendGrid vive como secreto del Worker (SENDGRID_API_KEY), nunca en el backend ni en el frontend.
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MAX_SUBJECT = 200;
@@ -27,8 +27,8 @@ export default {
       return json({ error: "Método no permitido" }, 405);
     }
 
-    if (!env.INTERNAL_API_KEY || !env.RESEND_API_KEY || !env.FROM_EMAIL) {
-      return json({ error: "El Worker no está configurado (falta INTERNAL_API_KEY, RESEND_API_KEY o FROM_EMAIL)" }, 500);
+    if (!env.INTERNAL_API_KEY || !env.SENDGRID_API_KEY || !env.FROM_EMAIL) {
+      return json({ error: "El Worker no está configurado (falta INTERNAL_API_KEY, SENDGRID_API_KEY o FROM_EMAIL)" }, 500);
     }
 
     const key = request.headers.get("X-Internal-Key") ?? "";
@@ -51,23 +51,27 @@ export default {
     if (!subject || subject.length > MAX_SUBJECT) return json({ error: `El asunto es obligatorio (máx. ${MAX_SUBJECT} caracteres)` }, 400);
     if (!message || message.length > MAX_MESSAGE) return json({ error: `El mensaje es obligatorio (máx. ${MAX_MESSAGE} caracteres)` }, 400);
 
-    const from = env.FROM_NAME ? `${env.FROM_NAME} <${env.FROM_EMAIL}>` : env.FROM_EMAIL;
-
-    const res = await fetch("https://api.resend.com/emails", {
+    const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        Authorization: `Bearer ${env.SENDGRID_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to: [to], subject, text: message }),
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: to }] }],
+        from: { email: env.FROM_EMAIL, name: env.FROM_NAME || undefined },
+        subject,
+        content: [{ type: "text/plain", value: message }],
+      }),
     });
 
     if (!res.ok) {
-      console.error("Resend error", res.status, await res.text());
-      return json({ error: "Resend no pudo enviar el correo" }, 502);
+      console.error("SendGrid error", res.status, await res.text());
+      return json({ error: "SendGrid no pudo enviar el correo" }, 502);
     }
 
-    const { id } = await res.json();
-    return json({ ok: true, id }, 200);
+    // SendGrid responde 202 sin cuerpo; el id del mensaje viene en este header.
+    const id = res.headers.get("X-Message-Id");
+    return json(id ? { ok: true, id } : { ok: true }, 200);
   },
 };
